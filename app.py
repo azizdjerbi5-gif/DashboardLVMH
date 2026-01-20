@@ -1,376 +1,242 @@
-from pathlib import Path
-import pandas as pd
-import plotly.express as px
 import streamlit as st
-import unidecode
+import pandas as pd
+import plotly.graph_objects as go
+import plotly.express as px
+import numpy as np
 
-# ================== CONFIG & STYLE CSS "PREMIUM" ==================
+# ================== 1. CONFIGURATION & STYLE ==================
 st.set_page_config(
-    page_title="Transport Analytics — Aziz Djerbi",
-    page_icon="🚇",
-    layout="wide",
-    initial_sidebar_state="expanded",
+    page_title="Rapport Financier Avancé - LVMH",
+    page_icon="💎",
+    layout="wide"
 )
 
-# CSS AMÉLIORÉ : Fond Dégradé & Cartes Flottantes
-st.markdown(
-    """
-    <style>
-    /* 1. LE FOND (BACKGROUND) */
+# CSS AMÉLIORÉ : Fond moderne & Cartes élégantes
+st.markdown("""
+<style>
+    /* FOND GLOBAL : Dégradé subtil gris-bleu très clair */
     .stApp {
-        /* Dégradé subtil gris-bleu vers blanc : effet pro et moderne */
-        background: linear-gradient(180deg, #eef2f6 0%, #ffffff 100%);
-        background-attachment: fixed;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
     }
-
-    /* 2. LA BARRE LATÉRALE (SIDEBAR) */
-    section[data-testid="stSidebar"] {
-        background-color: #ffffff;
-        box-shadow: 2px 0 10px rgba(0,0,0,0.05); /* Ombre légère à droite */
-        border-right: 1px solid #e0e0e0;
+    
+    /* TITRES : Police moderne et couleur sombre */
+    h1, h2, h3 {
+        color: #1e293b !important;
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        font-weight: 700;
     }
-
-    /* 3. TEXTES */
-    .stMarkdown, .stText, h1, h2, h3, h4, h5, h6, p, li, span, div {
-        color: #2c3e50 !important;
-        font-family: 'Segoe UI', sans-serif;
-    }
-
-    /* 4. CARTES GRAPHIQUES (Conteneurs Blancs) */
-    .graph-container {
-        background-color: #ffffff;
-        padding: 25px;
-        border-radius: 15px;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.05); /* Ombre plus douce et diffuse */
-        border: 1px solid #f0f0f0;
-        margin-bottom: 25px;
-        transition: transform 0.2s; /* Petit effet si on voulait animer */
-    }
-
-    /* 5. KPIs (INDICATEURS) */
-    div[data-testid="stMetric"] {
-        background-color: #ffffff;
-        border-left: 5px solid #0099DD;
+    
+    /* CARTES (Métriques & Graphiques) : Fond blanc pur avec ombre douce */
+    div[data-testid="stMetric"], .stPlotlyChart, .highlight-box {
+        background-color: rgba(255, 255, 255, 0.95); /* Blanc légèrement transparent */
         padding: 20px;
         border-radius: 12px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.03);
-        width: 100%;
-    }
-
-    /* 6. TITRES DE SECTION */
-    .custom-header {
-        font-size: 1.6rem;
-        font-weight: 700;
-        color: #1a202c;
-        margin-top: 30px;
-        margin-bottom: 20px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05); /* Ombre portée douce */
+        border: 1px solid rgba(255, 255, 255, 0.3);
     }
     
-    /* 7. ENCARTS D'EXPLICATION */
-    .insight-box {
-        background: linear-gradient(to right, #f8f9fa, #ffffff);
-        border-left: 4px solid #0099DD;
-        padding: 15px;
-        border-radius: 0 10px 10px 0;
-        font-size: 0.95rem;
-        margin-top: 15px;
-        color: #4a5568;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+    /* Bordure colorée pour les KPIs */
+    div[data-testid="stMetric"] {
+        border-left: 5px solid #0099DD;
     }
-    .insight-title {
-        font-weight: 700;
-        color: #0073a8;
-        display: block;
-        margin-bottom: 5px;
-        text-transform: uppercase;
-        font-size: 0.8rem;
-        letter-spacing: 1px;
+
+    /* Boîte de mise en avant (RSI) */
+    .highlight-box {
+        border-left: 5px solid #0284c7;
+        background-color: #f0f9ff;
     }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+</style>
+""", unsafe_allow_html=True)
 
-# ================== COULEURS INSTITUTIONNELLES ==================
-MODE_COLOR_MAP = {
-    "Métro": "#0099DD",
-    "RER": "#E3051C",
-    "Train": "#8A4B8F",
-    "Tram": "#FF7900",
-    "VAL": "#009854",
-    "Autre": "#95a5a6",
-    "Inconnu": "#bdc3c7"
-}
-
-# ================== LOCALISATION FICHIERS ==================
-BASE_DIR = Path(__file__).resolve().parent
-
-def locate_case_insensitive(name: str) -> Path:
-    p = BASE_DIR / name
-    if p.exists(): return p
-    lname = name.lower()
-    for child in BASE_DIR.iterdir():
-        if child.name.lower() == lname: return child
-    return p
-
-PDF_PATH = locate_case_insensitive("CV_Aziz_Djerbi.pdf")
-VALIDATIONS_PATH = locate_case_insensitive("validations-reseau-ferre-profils-horaires-par-jour-type-1er-trimestre.csv")
-GARES_PATH = locate_case_insensitive("emplacement-des-gares-idf-data-generalisee.csv")
-
-# ================== NETTOYAGE & DATA ==================
-def clean_name(name):
-    if not isinstance(name, str): return ""
-    name = name.lower().strip()
-    name = unidecode.unidecode(name)
-    name = name.replace("-", " ").replace("'", " ").replace(".", "")
-    name = name.replace("gare de ", "").replace("gare d ", "")
-    return " ".join(name.split())
-
+# ================== 2. CHARGEMENT & CALCULS AVANCÉS ==================
 @st.cache_data
 def load_data():
-    # 1. Validations
-    if not VALIDATIONS_PATH.exists(): return None, None, None
-    df_v = pd.read_csv(VALIDATIONS_PATH, sep=";")
-    df_v = df_v.rename(columns={
-        "libelle_arret": "gare", "cat_jour": "type_jour", 
-        "trnc_horr_60": "tranche_horaire", "pourcentage_validations": "pct_validations"
-    })
-    df_v["pct_validations"] = pd.to_numeric(df_v["pct_validations"], errors="coerce")
-    
-    def parse_heure(t):
-        if not isinstance(t, str): return None
-        try: return int(t.split("-")[0].replace("H", "").strip())
-        except: return None
-            
-    df_v["heure"] = df_v["tranche_horaire"].apply(parse_heure)
-    df_v = df_v.dropna(subset=["gare", "pct_validations", "heure"])
-    df_v["heure"] = df_v["heure"].astype(int)
-    df_v["gare_clean"] = df_v["gare"].apply(clean_name)
-
-    # 2. Gares
-    if not GARES_PATH.exists():
-        df_v["mode"] = "Inconnu"
-        df_v["lat"], df_v["lon"] = None, None
-        return df_v, None, df_v
-
-    df_g = pd.read_csv(GARES_PATH, sep=";")
-    if "nom_long" in df_g.columns: df_g = df_g.rename(columns={"nom_long": "gare"})
-    
-    if "geo_point_2d" in df_g.columns:
-        def split_geo(s):
-            if isinstance(s, str) and "," in s:
-                p = s.split(",")
-                return float(p[0]), float(p[1])
-            return None, None
-        coords = df_g["geo_point_2d"].apply(split_geo)
-        df_g["lat"] = coords.apply(lambda x: x[0] if x else None)
-        df_g["lon"] = coords.apply(lambda x: x[1] if x else None)
-    
-    if "mode" not in df_g.columns:
-        def get_mode(row):
-            if row.get("termetro") == 1: return "Métro"
-            if row.get("terrer") == 1: return "RER"
-            if row.get("tertram") == 1: return "Tram"
-            if row.get("tertrain") == 1: return "Train"
-            return "Autre"
-        df_g["mode"] = df_g.apply(get_mode, axis=1)
-
-    df_g["gare_clean"] = df_g["gare"].apply(clean_name)
-    df_g_unique = df_g.groupby("gare_clean").first().reset_index()
-
-    # 3. Fusion
-    df_m = df_v.merge(df_g_unique[["gare_clean", "lat", "lon", "mode"]], on="gare_clean", how="left")
-    df_m["mode"] = df_m["mode"].fillna("Inconnu")
-    
-    return df_v, df_g, df_m
-
-# ================== FONCTIONS GRAPHIQUES ==================
-def add_insight(text):
-    html = f"<div class='insight-box'><span class='insight-title'>💡 L'info Business</span>{text}</div>"
-    st.markdown(html, unsafe_allow_html=True)
-
-def plot_donut_mode(df):
-    if df.empty: return
-    df_agg = df.groupby("mode")["pct_validations"].sum().reset_index()
-    fig = px.pie(df_agg, values="pct_validations", names="mode", hole=0.6, color="mode", color_discrete_map=MODE_COLOR_MAP)
-    fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=250, showlegend=True, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-    st.plotly_chart(fig, use_container_width=True)
-
-def plot_bar_day_comparison(df):
-    if df.empty: return
-    df_agg = df.groupby("type_jour")["pct_validations"].mean().reset_index()
-    fig = px.bar(df_agg, x="type_jour", y="pct_validations", color="type_jour", text_auto='.1f',
-                 labels={"pct_validations": "Intensité Moyenne"}, template="plotly_white")
-    fig.update_layout(showlegend=False, height=250, margin=dict(t=10, b=10, l=10, r=10), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-    fig.update_traces(textposition='outside')
-    st.plotly_chart(fig, use_container_width=True)
-
-def plot_area_profile(df):
-    if df.empty: return
-    top_gares = df.groupby("gare")["pct_validations"].sum().nlargest(5).index.tolist()
-    df_sub = df[df["gare"].isin(top_gares)]
-    df_agg = df_sub.groupby(["gare", "heure"])["pct_validations"].mean().reset_index()
-    fig = px.area(df_agg, x="heure", y="pct_validations", color="gare", line_shape="spline",
-                  labels={"pct_validations": "% Valid."}, template="plotly_white")
-    fig.update_layout(height=350, margin=dict(l=10, r=10, t=30, b=10), legend=dict(orientation="h", y=1.1), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-    st.plotly_chart(fig, use_container_width=True)
-
-def plot_map_density(df):
-    df_map = df.dropna(subset=["lat", "lon"])
-    if df_map.empty:
-        st.warning("Pas de données géographiques.")
-        return
-    df_agg = df_map.groupby(["gare", "lat", "lon", "mode"])["pct_validations"].sum().reset_index()
-    fig = px.scatter_mapbox(df_agg, lat="lat", lon="lon", color="mode", size="pct_validations",
-                            color_discrete_map=MODE_COLOR_MAP, mapbox_style="carto-positron",
-                            zoom=9, center={"lat": 48.86, "lon": 2.35}, opacity=0.8, size_max=25, hover_name="gare")
-    fig.update_layout(height=500, margin=dict(r=0, t=0, l=0, b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-    st.plotly_chart(fig, use_container_width=True)
-
-def plot_boxplot_distribution(df):
-    if df.empty: return
-    fig = px.box(df, x="mode", y="pct_validations", color="mode", color_discrete_map=MODE_COLOR_MAP, template="plotly_white")
-    fig.update_layout(height=350, margin=dict(t=20, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-    st.plotly_chart(fig, use_container_width=True)
-
-# ================== DASHBOARD UI ==================
-def show_transport_dashboard():
-    st.markdown("<h1 style='text-align: center; color: #0099DD;'>🚇 Transport Analytics Île-de-France</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; font-size: 1.2rem; color: #555; margin-bottom: 40px;'>Analyse des flux voyageurs et performance du réseau ferré.</p>", unsafe_allow_html=True)
-    
-    df_v, df_g, df_m = load_data()
-    if df_m is None or df_m.empty:
-        st.error("Erreur : Données introuvables.")
-        return
-
-    with st.sidebar:
-        st.markdown("### 🎛️ Filtres")
-        days = ["Tous"] + sorted(df_m["type_jour"].dropna().unique().tolist())
-        s_day = st.selectbox("Type de jour", days)
+    file_path = 'LVMH_2026-01-16.txt'
+    try:
+        df = pd.read_csv(file_path, sep='\t')
+        df = df.rename(columns={
+            'date': 'Date', 'ouv': 'Open', 'haut': 'High', 
+            'bas': 'Low', 'clot': 'Close', 'vol': 'Volume'
+        })
+        df['Date'] = pd.to_datetime(df['Date'], dayfirst=True)
+        df = df.sort_values(by='Date')
         
-        avail_modes = sorted(df_m["mode"].unique().tolist())
-        default_modes = [m for m in ["Métro", "RER"] if m in avail_modes]
-        s_modes = st.multiselect("Modes", avail_modes, default=default_modes)
+        # --- CALCULS TECHNIQUES ---
+        # 1. Moyennes Mobiles
+        df['SMA_20'] = df['Close'].rolling(window=20).mean()
+        df['SMA_50'] = df['Close'].rolling(window=50).mean()
         
-        df_pre = df_m.copy()
-        if s_modes: df_pre = df_pre[df_pre["mode"].isin(s_modes)]
-        gares_list = sorted(df_pre["gare"].unique().tolist())
-        s_gares = st.multiselect("Gares", gares_list[:100])
+        # 2. Bandes de Bollinger
+        df['BB_High'] = df['SMA_20'] + (df['Close'].rolling(20).std() * 2)
+        df['BB_Low'] = df['SMA_20'] - (df['Close'].rolling(20).std() * 2)
         
-        st.markdown("---")
-        st.info(f"📊 **Base de données :** {len(df_m):,} lignes.")
+        # 3. RSI (Relative Strength Index) - 14 jours
+        delta = df['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        df['RSI'] = 100 - (100 / (1 + rs))
+        
+        # 4. MACD
+        exp12 = df['Close'].ewm(span=12, adjust=False).mean()
+        exp26 = df['Close'].ewm(span=26, adjust=False).mean()
+        df['MACD'] = exp12 - exp26
+        df['Signal_Line'] = df['MACD'].ewm(span=9, adjust=False).mean()
+        
+        return df
+    except Exception as e:
+        st.error(f"Erreur critique : {e}")
+        return None
 
-    df_filt = df_m.copy()
-    if s_day != "Tous": df_filt = df_filt[df_filt["type_jour"] == s_day]
-    if s_modes: df_filt = df_filt[df_filt["mode"].isin(s_modes)]
-    if s_gares: df_filt = df_filt[df_filt["gare"].isin(s_gares)]
+# ================== 3. INTERFACE DASHBOARD ==================
 
-    if df_filt.empty:
-        st.warning("Aucune donnée.")
-        return
+df = load_data()
 
-    # KPIs
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Gares", df_filt["gare"].nunique())
-    c2.metric("Mode Dominant", df_filt["mode"].mode()[0] if not df_filt.empty else "-")
-    peak = df_filt.groupby("heure")["pct_validations"].mean().idxmax()
-    c3.metric("Pic Horaire", f"{peak}h00")
-    c4.metric("Lignes Analysées", f"{len(df_filt):,}")
+if df is not None:
+    # --- HEADER EXÉCUTIF ---
+    st.markdown("<h1>💎 Analyse Stratégique : Action LVMH</h1>", unsafe_allow_html=True)
+    st.markdown("**Rapport de Performance & Analyse Technique** | Période : 12 derniers mois")
     
-    # Ligne 1
-    st.markdown("<div class='custom-header'>📍 Géographie & Répartition</div>", unsafe_allow_html=True)
-    c_map, c_charts = st.columns([2, 1])
-    with c_map:
-        with st.container():
-            st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
-            st.markdown("##### Carte de Densité")
-            plot_map_density(df_filt)
-            add_insight("Identifie les nœuds majeurs et la couverture territoriale.")
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-    with c_charts:
-        with st.container():
-            st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
-            st.markdown("##### Parts de Marché")
-            plot_donut_mode(df_filt)
-            st.markdown("</div>", unsafe_allow_html=True)
-        
-        st.markdown("")
-        with st.container():
-            st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
-            st.markdown("##### Intensité : Semaine vs WE")
-            plot_bar_day_comparison(df_filt)
-            add_insight("Permet de distinguer gares de travail vs résidentielles.")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    # Ligne 2
-    st.markdown("<div class='custom-header'>⏰ Dynamique Temporelle</div>", unsafe_allow_html=True)
-    c_line, c_box = st.columns([2, 1])
-    with c_line:
-        with st.container():
-            st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
-            st.markdown("##### Profils Horaires (Top 5)")
-            plot_area_profile(df_filt)
-            add_insight("Essentiel pour le dimensionnement de l'offre aux heures de pointe.")
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-    with c_box:
-        with st.container():
-            st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
-            st.markdown("##### Variabilité (Boxplot)")
-            plot_boxplot_distribution(df_filt)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-# ================== CV UI (SANS PHOTO) ==================
-def show_cv():
-    st.markdown("<h1 style='color:#2c3e50; text-align:left;'>AZIZ DJERBI</h1>", unsafe_allow_html=True)
-    st.markdown("### 🎓 Étudiant Data Analyst en recherche d'alternance")
-    st.write("📍 Pierrefitte-sur-Seine • 🚗 Permis B • 📞 07 78 16 05 47")
-
-    if PDF_PATH.exists():
-        with open(PDF_PATH, "rb") as f:
-            st.download_button("📄 Télécharger mon CV (PDF)", f, file_name="CV_Aziz_Djerbi.pdf")
-
     st.divider()
-    tab_profil, tab_exp, tab_form, tab_proj, tab_comp = st.tabs(["Profil", "Expériences", "Formations", "Projets", "Compétences"])
 
-    with tab_profil:
-        st.write("Passionné par la Data, je cherche une alternance pour mettre mes compétences à profit.")
-        c1, c2 = st.columns(2)
-        c1.metric("Data Stack", "Python, SQL, Power BI")
-        c2.metric("Langues", "Anglais B2, Allemand B1")
+    # --- KPI BOARD ---
+    last = df.iloc[-1]
+    prev = df.iloc[-2]
+    start = df.iloc[0]
+    
+    # Variations
+    var_jour = ((last['Close'] - prev['Close']) / prev['Close']) * 100
+    var_an = ((last['Close'] - start['Close']) / start['Close']) * 100
+    volatilité_hebdo = df['Close'].pct_change().rolling(5).std().iloc[-1] * 100 # Volatilité sur 5 jours
 
-    with tab_exp:
-        st.markdown("**Stagiaire Data Analyst — Laevitas (Tunis)** (Juin-Août 2025)")
-        st.write("- Pipeline Data, Cost Monitoring, Dashboards Plotly/Dash.")
+    col1, col2, col3, col4, col5 = st.columns(5)
+    col1.metric("Dernier Cours", f"{last['Close']:.2f} €", f"{var_jour:.2f} %")
+    col2.metric("Perf. YTD (1 an)", f"{var_an:.2f} %", delta_color="normal")
+    col3.metric("Plus Haut (An)", f"{df['High'].max():.2f} €")
+    col4.metric("Volatilité (5j)", f"{volatilité_hebdo:.2f} %", help="Écart-type des rendements sur 5 jours")
+    col5.metric("Volume (Moyen)", f"{int(df['Volume'].mean()/1000):,} K", help="Volume quotidien moyen en milliers")
 
-    with tab_form:
-        st.write("**BUT Science des Données** (2023-2026) - IUT Paris Rives de Seine")
-        st.write("**Bac Général** (2023) - Lycée La Salle Saint-Rosaire")
+    st.markdown("---")
 
-    with tab_proj:
-        c1, c2 = st.columns(2)
-        c1.info("**Enquête IA** : Analyse statistique et présentation.")
-        c2.info("**Reporting SQL** : Analyse ventes DVD type Netflix.")
+    # --- SECTION 1 : ANALYSE DES PRIX & TENDANCES ---
+    col_chart, col_tech = st.columns([3, 1])
+    
+    with col_chart:
+        st.subheader("📈 Dynamique des Prix & Bandes de Bollinger")
+        
+        fig = go.Figure()
+        
+        # Bandes de Bollinger (Zone grise)
+        fig.add_trace(go.Scatter(
+            x=df['Date'], y=df['BB_High'], mode='lines', line=dict(width=0), showlegend=False, hoverinfo='skip'
+        ))
+        fig.add_trace(go.Scatter(
+            x=df['Date'], y=df['BB_Low'], mode='lines', line=dict(width=0), fill='tonexty', 
+            fillcolor='rgba(200, 200, 200, 0.2)', name='Bandes Bollinger'
+        ))
+        
+        # Cours & Moyennes
+        fig.add_trace(go.Scatter(x=df['Date'], y=df['Close'], mode='lines', name='Cours Clôture', line=dict(color='#0f172a', width=2)))
+        fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_50'], mode='lines', name='MM 50j (Tendance)', line=dict(color='#f59e0b', width=1.5)))
+        
+        fig.update_layout(
+            template="plotly_white", height=500, hovermode="x unified",
+            legend=dict(orientation="h", y=1.02, x=0),
+            margin=dict(l=0, r=0, t=0, b=0),
+            plot_bgcolor='rgba(0,0,0,0)', # Fond du graphique transparent pour voir le dégradé
+            paper_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-    with tab_comp:
-        st.progress(85, "Python (Pandas, Plotly)")
-        st.progress(80, "SQL")
-        st.progress(75, "Power BI / Excel")
+    with col_tech:
+        st.subheader("📋 Synthèse Technique")
+        
+        # Signal RSI
+        last_rsi = last['RSI']
+        if last_rsi > 70:
+            rsi_signal = "🔴 SURACHAT (Vente?)"
+            rsi_color = "red"
+        elif last_rsi < 30:
+            rsi_signal = "🟢 SURVENTE (Achat?)"
+            rsi_color = "green"
+        else:
+            rsi_signal = "⚪ NEUTRE"
+            rsi_color = "gray"
+            
+        st.markdown(f"""
+        <div class="highlight-box">
+            <b>Indicateur RSI (14j) :</b> {last_rsi:.1f}<br>
+            <span style="color:{rsi_color}; font-weight:bold;">{rsi_signal}</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("**Niveaux Clés :**")
+        st.write(f"Resistance (Haut): **{df['High'].max():.2f} €**")
+        st.write(f"Support (Bas): **{df['Low'].min():.2f} €**")
+        
+        st.info("Les Bandes de Bollinger (zone grise) indiquent la volatilité. Un resserrement annonce souvent un mouvement violent à venir.")
 
-# ================== MAIN ==================
-def main():
-    st.sidebar.title("Navigation")
-    page = st.sidebar.radio("", ["Dashboard Transport", "CV / Portfolio"], label_visibility="collapsed")
-    if page == "Dashboard Transport":
-        show_transport_dashboard()
-    else:
-        show_cv()
-    st.sidebar.markdown("---")
-    st.sidebar.caption("© 2025 Aziz Djerbi")
+    # --- SECTION 2 : OSCILLATEURS (MACD & RSI) ---
+    st.subheader("⚡ Indicateurs de Momentum (MACD & RSI)")
+    
+    tab_macd, tab_rsi = st.tabs(["MACD (Tendance)", "RSI (Force Relative)"])
+    
+    with tab_macd:
+        fig_macd = go.Figure()
+        fig_macd.add_trace(go.Scatter(x=df['Date'], y=df['MACD'], name='MACD', line=dict(color='#2563eb')))
+        fig_macd.add_trace(go.Scatter(x=df['Date'], y=df['Signal_Line'], name='Signal', line=dict(color='#dc2626')))
+        
+        # Histogramme
+        colors = np.where(df['MACD'] - df['Signal_Line'] > 0, '#4ade80', '#f87171')
+        fig_macd.add_trace(go.Bar(x=df['Date'], y=df['MACD'] - df['Signal_Line'], name='Histogramme', marker_color=colors))
+        
+        fig_macd.update_layout(
+            template="plotly_white", height=300, margin=dict(t=10, b=10),
+            plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig_macd, use_container_width=True)
+        
+    with tab_rsi:
+        fig_rsi = go.Figure()
+        fig_rsi.add_trace(go.Scatter(x=df['Date'], y=df['RSI'], name='RSI', line=dict(color='#7c3aed')))
+        
+        # Zones 30/70
+        fig_rsi.add_shape(type="line", x0=df['Date'].min(), x1=df['Date'].max(), y0=70, y1=70, line=dict(color="red", dash="dash"))
+        fig_rsi.add_shape(type="line", x0=df['Date'].min(), x1=df['Date'].max(), y0=30, y1=30, line=dict(color="green", dash="dash"))
+        
+        fig_rsi.update_layout(
+            template="plotly_white", height=300, yaxis=dict(range=[0, 100]), margin=dict(t=10, b=10),
+            plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig_rsi, use_container_width=True)
 
-if __name__ == "__main__":
-    main()
+    # --- SECTION 3 : SAISONNALITÉ (HEATMAP) ---
+    st.subheader("📅 Performance Mensuelle (Saisonnalité)")
+    
+    # Préparation des données pour la heatmap
+    df['Year'] = df['Date'].dt.year
+    df['Month'] = df['Date'].dt.month_name()
+    df['Month_Num'] = df['Date'].dt.month
+    
+    # Calcul rendement mensuel
+    monthly_perf = df.groupby(['Year', 'Month', 'Month_Num'])['Close'].apply(lambda x: (x.iloc[-1] - x.iloc[0]) / x.iloc[0] * 100).reset_index()
+    monthly_perf = monthly_perf.sort_values('Month_Num')
+    
+    fig_heat = px.bar(
+        monthly_perf, x='Month', y='Close', color='Close',
+        color_continuous_scale='RdYlGn', 
+        labels={'Close': 'Performance (%)'},
+        text_auto='.1f'
+    )
+    fig_heat.update_layout(
+        template="plotly_white", height=350,
+        plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)'
+    )
+    st.plotly_chart(fig_heat, use_container_width=True)
+
+    # --- FOOTER ---
+    with st.expander("📂 Télécharger les données brutes (Excel/CSV)"):
+        st.dataframe(df, use_container_width=True)
+
+else:
+    st.error("Fichier de données introuvable.")
