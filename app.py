@@ -2,104 +2,73 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-import numpy as np
 
 # ================== 1. CONFIGURATION & STYLE ==================
 st.set_page_config(
-    page_title="Rapport Financier Avancé - LVMH",
-    page_icon="💎",
+    page_title="Rapport Financier - LVMH",
+    page_icon="💼",
     layout="wide"
 )
 
-# CSS AMÉLIORÉ : Fond moderne & Cartes élégantes
+# CSS pour un look "Rapport Financier"
 st.markdown("""
 <style>
-    /* FOND GLOBAL : Dégradé subtil gris-bleu très clair */
-    .stApp {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-    }
+    .main { background-color: #f8f9fa; }
+    h1 { color: #0f172a; font-family: 'Helvetica', sans-serif; }
+    h3 { color: #334155; }
     
-    /* TITRES : Police moderne et couleur sombre */
-    h1, h2, h3 {
-        color: #1e293b !important;
-        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-        font-weight: 700;
-    }
-    
-    /* CARTES (Métriques & Graphiques) : Fond blanc pur avec ombre douce */
-    div[data-testid="stMetric"], .stPlotlyChart, .highlight-box {
-        background-color: rgba(255, 255, 255, 0.95); /* Blanc légèrement transparent */
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05); /* Ombre portée douce */
-        border: 1px solid rgba(255, 255, 255, 0.3);
-    }
-    
-    /* Bordure colorée pour les KPIs */
+    /* Style des cartes de métriques */
     div[data-testid="stMetric"] {
-        border-left: 5px solid #0099DD;
-    }
-
-    /* Boîte de mise en avant (RSI) */
-    .highlight-box {
-        border-left: 5px solid #0284c7;
-        background-color: #f0f9ff;
+        background-color: white;
+        border: 1px solid #e2e8f0;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
 </style>
 """, unsafe_allow_html=True)
 
-# ================== 2. CHARGEMENT & CALCULS AVANCÉS ==================
+# ================== 2. FONCTIONS DE CHARGEMENT ==================
 @st.cache_data
 def load_data():
     file_path = 'LVMH_2026-01-16.txt'
     try:
+        # Lecture du fichier
         df = pd.read_csv(file_path, sep='\t')
+        
+        # Nettoyage et Renommage
         df = df.rename(columns={
             'date': 'Date', 'ouv': 'Open', 'haut': 'High', 
             'bas': 'Low', 'clot': 'Close', 'vol': 'Volume'
         })
+        
+        # Conversion Date
         df['Date'] = pd.to_datetime(df['Date'], dayfirst=True)
         df = df.sort_values(by='Date')
         
-        # --- CALCULS TECHNIQUES ---
-        # 1. Moyennes Mobiles
-        df['SMA_20'] = df['Close'].rolling(window=20).mean()
-        df['SMA_50'] = df['Close'].rolling(window=50).mean()
-        
-        # 2. Bandes de Bollinger
-        df['BB_High'] = df['SMA_20'] + (df['Close'].rolling(20).std() * 2)
-        df['BB_Low'] = df['SMA_20'] - (df['Close'].rolling(20).std() * 2)
-        
-        # 3. RSI (Relative Strength Index) - 14 jours
-        delta = df['Close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        rs = gain / loss
-        df['RSI'] = 100 - (100 / (1 + rs))
-        
-        # 4. MACD
-        exp12 = df['Close'].ewm(span=12, adjust=False).mean()
-        exp26 = df['Close'].ewm(span=26, adjust=False).mean()
-        df['MACD'] = exp12 - exp26
-        df['Signal_Line'] = df['MACD'].ewm(span=9, adjust=False).mean()
+        # Calculs techniques (Moyennes Mobiles)
+        df['SMA_20'] = df['Close'].rolling(window=20).mean() # Court terme
+        df['SMA_50'] = df['Close'].rolling(window=50).mean() # Moyen terme
         
         return df
     except Exception as e:
-        st.error(f"Erreur critique : {e}")
+        st.error(f"Erreur de lecture : {e}")
         return None
 
-# ================== 3. INTERFACE DASHBOARD ==================
+# ================== 3. INTERFACE UTILISATEUR ==================
 
 df = load_data()
 
 if df is not None:
-    # --- HEADER EXÉCUTIF ---
-    st.markdown("<h1>💎 Analyse Stratégique : Action LVMH</h1>", unsafe_allow_html=True)
-    st.markdown("**Rapport de Performance & Analyse Technique** | Période : 12 derniers mois")
-    
+    # --- EN-TÊTE ---
+    col_logo, col_title = st.columns([1, 5])
+    with col_title:
+        st.title("💼 Analyse de Performance : Action LVMH")
+        st.markdown("**Période analysée :** 12 derniers mois | **Devise :** EUR")
+
     st.divider()
 
-    # --- KPI BOARD ---
+    # --- CALCULS KPIs (Dernier jour vs Historique) ---
     last = df.iloc[-1]
     prev = df.iloc[-2]
     start = df.iloc[0]
@@ -107,136 +76,69 @@ if df is not None:
     # Variations
     var_jour = ((last['Close'] - prev['Close']) / prev['Close']) * 100
     var_an = ((last['Close'] - start['Close']) / start['Close']) * 100
-    volatilité_hebdo = df['Close'].pct_change().rolling(5).std().iloc[-1] * 100 # Volatilité sur 5 jours
+    volatilité = (df['High'] - df['Low']).mean()
 
-    col1, col2, col3, col4, col5 = st.columns(5)
-    col1.metric("Dernier Cours", f"{last['Close']:.2f} €", f"{var_jour:.2f} %")
-    col2.metric("Perf. YTD (1 an)", f"{var_an:.2f} %", delta_color="normal")
-    col3.metric("Plus Haut (An)", f"{df['High'].max():.2f} €")
-    col4.metric("Volatilité (5j)", f"{volatilité_hebdo:.2f} %", help="Écart-type des rendements sur 5 jours")
-    col5.metric("Volume (Moyen)", f"{int(df['Volume'].mean()/1000):,} K", help="Volume quotidien moyen en milliers")
+    # --- LIGNE 1 : CHIFFRES CLÉS (KPIs) ---
+    c1, c2, c3, c4 = st.columns(4)
+    
+    with c1:
+        st.metric("Prix Actuel", f"{last['Close']:.2f} €", f"{var_jour:.2f} %")
+    with c2:
+        st.metric("Performance 1 An", f"{var_an:.2f} %", delta_color="normal")
+    with c3:
+        st.metric("Plus Haut (52 sem)", f"{df['High'].max():.2f} €")
+    with c4:
+        st.metric("Volume Moyen", f"{int(df['Volume'].mean()):,}")
 
     st.markdown("---")
 
-    # --- SECTION 1 : ANALYSE DES PRIX & TENDANCES ---
-    col_chart, col_tech = st.columns([3, 1])
-    
-    with col_chart:
-        st.subheader("📈 Dynamique des Prix & Bandes de Bollinger")
-        
-        fig = go.Figure()
-        
-        # Bandes de Bollinger (Zone grise)
-        fig.add_trace(go.Scatter(
-            x=df['Date'], y=df['BB_High'], mode='lines', line=dict(width=0), showlegend=False, hoverinfo='skip'
-        ))
-        fig.add_trace(go.Scatter(
-            x=df['Date'], y=df['BB_Low'], mode='lines', line=dict(width=0), fill='tonexty', 
-            fillcolor='rgba(200, 200, 200, 0.2)', name='Bandes Bollinger'
-        ))
-        
-        # Cours & Moyennes
-        fig.add_trace(go.Scatter(x=df['Date'], y=df['Close'], mode='lines', name='Cours Clôture', line=dict(color='#0f172a', width=2)))
-        fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_50'], mode='lines', name='MM 50j (Tendance)', line=dict(color='#f59e0b', width=1.5)))
-        
-        fig.update_layout(
-            template="plotly_white", height=500, hovermode="x unified",
-            legend=dict(orientation="h", y=1.02, x=0),
-            margin=dict(l=0, r=0, t=0, b=0),
-            plot_bgcolor='rgba(0,0,0,0)', # Fond du graphique transparent pour voir le dégradé
-            paper_bgcolor='rgba(0,0,0,0)'
-        )
-        st.plotly_chart(fig, use_container_width=True)
+    # --- LIGNE 2 : GRAPHIQUE PRINCIPAL & ANALYSE ---
+    col_main, col_info = st.columns([3, 1])
 
-    with col_tech:
-        st.subheader("📋 Synthèse Technique")
+    with col_main:
+        st.subheader("📈 Évolution du Cours & Tendances")
         
-        # Signal RSI
-        last_rsi = last['RSI']
-        if last_rsi > 70:
-            rsi_signal = "🔴 SURACHAT (Vente?)"
-            rsi_color = "red"
-        elif last_rsi < 30:
-            rsi_signal = "🟢 SURVENTE (Achat?)"
-            rsi_color = "green"
-        else:
-            rsi_signal = "⚪ NEUTRE"
-            rsi_color = "gray"
+        # Onglets pour changer de vue
+        tab_line, tab_candle = st.tabs(["Vue Simplifiée (Courbe)", "Vue Trader (Bougies)"])
+        
+        with tab_line:
+            fig = go.Figure()
+            # Cours
+            fig.add_trace(go.Scatter(x=df['Date'], y=df['Close'], mode='lines', name='Prix Clôture', line=dict(color='#0f172a', width=2)))
+            # Moyennes Mobiles
+            fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_20'], mode='lines', name='Moyenne 20j (Court terme)', line=dict(color='#3b82f6', width=1)))
+            fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_50'], mode='lines', name='Moyenne 50j (Tendance fond)', line=dict(color='#f97316', width=1)))
             
-        st.markdown(f"""
-        <div class="highlight-box">
-            <b>Indicateur RSI (14j) :</b> {last_rsi:.1f}<br>
-            <span style="color:{rsi_color}; font-weight:bold;">{rsi_signal}</span>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("**Niveaux Clés :**")
-        st.write(f"Resistance (Haut): **{df['High'].max():.2f} €**")
-        st.write(f"Support (Bas): **{df['Low'].min():.2f} €**")
-        
-        st.info("Les Bandes de Bollinger (zone grise) indiquent la volatilité. Un resserrement annonce souvent un mouvement violent à venir.")
+            fig.update_layout(template="plotly_white", height=450, hovermode="x unified", legend=dict(orientation="h", y=1.1))
+            st.plotly_chart(fig, use_container_width=True)
 
-    # --- SECTION 2 : OSCILLATEURS (MACD & RSI) ---
-    st.subheader("⚡ Indicateurs de Momentum (MACD & RSI)")
-    
-    tab_macd, tab_rsi = st.tabs(["MACD (Tendance)", "RSI (Force Relative)"])
-    
-    with tab_macd:
-        fig_macd = go.Figure()
-        fig_macd.add_trace(go.Scatter(x=df['Date'], y=df['MACD'], name='MACD', line=dict(color='#2563eb')))
-        fig_macd.add_trace(go.Scatter(x=df['Date'], y=df['Signal_Line'], name='Signal', line=dict(color='#dc2626')))
-        
-        # Histogramme
-        colors = np.where(df['MACD'] - df['Signal_Line'] > 0, '#4ade80', '#f87171')
-        fig_macd.add_trace(go.Bar(x=df['Date'], y=df['MACD'] - df['Signal_Line'], name='Histogramme', marker_color=colors))
-        
-        fig_macd.update_layout(
-            template="plotly_white", height=300, margin=dict(t=10, b=10),
-            plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)'
-        )
-        st.plotly_chart(fig_macd, use_container_width=True)
-        
-    with tab_rsi:
-        fig_rsi = go.Figure()
-        fig_rsi.add_trace(go.Scatter(x=df['Date'], y=df['RSI'], name='RSI', line=dict(color='#7c3aed')))
-        
-        # Zones 30/70
-        fig_rsi.add_shape(type="line", x0=df['Date'].min(), x1=df['Date'].max(), y0=70, y1=70, line=dict(color="red", dash="dash"))
-        fig_rsi.add_shape(type="line", x0=df['Date'].min(), x1=df['Date'].max(), y0=30, y1=30, line=dict(color="green", dash="dash"))
-        
-        fig_rsi.update_layout(
-            template="plotly_white", height=300, yaxis=dict(range=[0, 100]), margin=dict(t=10, b=10),
-            plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)'
-        )
-        st.plotly_chart(fig_rsi, use_container_width=True)
+        with tab_candle:
+            fig_c = go.Figure(data=[go.Candlestick(x=df['Date'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
+            fig_c.update_layout(template="plotly_white", height=450, xaxis_rangeslider_visible=False)
+            st.plotly_chart(fig_c, use_container_width=True)
 
-    # --- SECTION 3 : SAISONNALITÉ (HEATMAP) ---
-    st.subheader("📅 Performance Mensuelle (Saisonnalité)")
-    
-    # Préparation des données pour la heatmap
-    df['Year'] = df['Date'].dt.year
-    df['Month'] = df['Date'].dt.month_name()
-    df['Month_Num'] = df['Date'].dt.month
-    
-    # Calcul rendement mensuel
-    monthly_perf = df.groupby(['Year', 'Month', 'Month_Num'])['Close'].apply(lambda x: (x.iloc[-1] - x.iloc[0]) / x.iloc[0] * 100).reset_index()
-    monthly_perf = monthly_perf.sort_values('Month_Num')
-    
-    fig_heat = px.bar(
-        monthly_perf, x='Month', y='Close', color='Close',
-        color_continuous_scale='RdYlGn', 
-        labels={'Close': 'Performance (%)'},
-        text_auto='.1f'
-    )
-    fig_heat.update_layout(
-        template="plotly_white", height=350,
-        plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)'
-    )
-    st.plotly_chart(fig_heat, use_container_width=True)
+    with col_info:
+        st.subheader("💡 Analyse Rapide")
+        st.info("""
+        **Comment lire ce graphique ?**
+        
+        1. **La ligne noire** indique le prix réel.
+        2. **La ligne bleue (20j)** réagit vite : si le prix est au-dessus, c'est une dynamique positive à court terme.
+        3. **La ligne orange (50j)** indique la tendance de fond.
+        """)
+        
+        st.write("---")
+        st.metric("Volatilité Moyenne", f"{volatilité:.2f} €", help="Écart moyen entre le plus haut et le plus bas d'une journée.")
 
-    # --- FOOTER ---
-    with st.expander("📂 Télécharger les données brutes (Excel/CSV)"):
-        st.dataframe(df, use_container_width=True)
+    # --- LIGNE 3 : VOLUMES ---
+    st.subheader("📊 Volumes d'échanges")
+    fig_vol = px.bar(df, x='Date', y='Volume', color='Volume', color_continuous_scale='Blues')
+    fig_vol.update_layout(template="plotly_white", height=250, showlegend=False)
+    st.plotly_chart(fig_vol, use_container_width=True)
+
+    # --- PIED DE PAGE : DONNÉES ---
+    with st.expander("📂 Voir l'historique complet des données"):
+        st.dataframe(df.sort_values(by='Date', ascending=False), use_container_width=True)
 
 else:
-    st.error("Fichier de données introuvable.")
+    st.warning("⚠️ Veuillez placer le fichier 'LVMH_2026-01-16.txt' dans le même dossier.")
