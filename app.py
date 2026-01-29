@@ -42,7 +42,7 @@ st.markdown("""
         font-weight: 700;
     }
 
-    /* CARTES (Métriques & Graphiques) */
+    /* CARTES (Métriques & Graphiques) : Fond blanc pur avec ombre douce */
     div[data-testid="stMetric"], .stPlotlyChart, .highlight-box {
         background-color: rgba(255, 255, 255, 0.95);
         padding: 20px;
@@ -56,13 +56,14 @@ st.markdown("""
         border-left: 5px solid #0099DD;
     }
 
-    /* Boîte RSI */
+    /* Boîte de mise en avant (RSI) */
     .highlight-box {
         border-left: 5px solid #0284c7;
         background-color: #f0f9ff;
     }
 </style>
 """, unsafe_allow_html=True)
+
 
 # ================== 2. CHARGEMENT & CALCULS AVANCÉS ==================
 @st.cache_data
@@ -256,5 +257,6 @@ if df is not None:
 
 else:
     st.error("Fichier de données introuvable.")
+
 
 
