@@ -140,11 +140,14 @@ if df is not None:
         fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_50'], mode='lines', name='MM 50j (Tendance)', line=dict(color='#f59e0b', width=1.5)))
         
         fig.update_layout(
-            template="plotly_white", height=500, hovermode="x unified",
+            template="plotly_white", 
+            height=500, 
+            hovermode="x unified",
             legend=dict(orientation="h", y=1.02, x=0),
             margin=dict(l=0, r=0, t=0, b=0),
-            plot_bgcolor='rgba(0,0,0,0)', # Fond du graphique transparent pour voir le dégradé
-            paper_bgcolor='rgba(0,0,0,0)'
+            plot_bgcolor='rgba(0,0,0,0)', 
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(color="black") # <--- AJOUT : Force le texte en noir
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -191,8 +194,12 @@ if df is not None:
         fig_macd.add_trace(go.Bar(x=df['Date'], y=df['MACD'] - df['Signal_Line'], name='Histogramme', marker_color=colors))
         
         fig_macd.update_layout(
-            template="plotly_white", height=300, margin=dict(t=10, b=10),
-            plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)'
+            template="plotly_white", 
+            height=300, 
+            margin=dict(t=10, b=10),
+            plot_bgcolor='rgba(0,0,0,0)', 
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(color="black") # <--- AJOUT : Force le texte en noir
         )
         st.plotly_chart(fig_macd, use_container_width=True)
         
@@ -205,8 +212,13 @@ if df is not None:
         fig_rsi.add_shape(type="line", x0=df['Date'].min(), x1=df['Date'].max(), y0=30, y1=30, line=dict(color="green", dash="dash"))
         
         fig_rsi.update_layout(
-            template="plotly_white", height=300, yaxis=dict(range=[0, 100]), margin=dict(t=10, b=10),
-            plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)'
+            template="plotly_white", 
+            height=300, 
+            yaxis=dict(range=[0, 100]), 
+            margin=dict(t=10, b=10),
+            plot_bgcolor='rgba(0,0,0,0)', 
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(color="black") # <--- AJOUT : Force le texte en noir
         )
         st.plotly_chart(fig_rsi, use_container_width=True)
 
@@ -229,8 +241,11 @@ if df is not None:
         text_auto='.1f'
     )
     fig_heat.update_layout(
-        template="plotly_white", height=350,
-        plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)'
+        template="plotly_white", 
+        height=350,
+        plot_bgcolor='rgba(0,0,0,0)', 
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(color="black") # <--- AJOUT : Force le texte en noir
     )
     st.plotly_chart(fig_heat, use_container_width=True)
 
