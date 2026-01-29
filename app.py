@@ -13,6 +13,7 @@ st.set_page_config(
 
 # CSS AMÉLIORÉ : Fond moderne & Cartes élégantes
 st.markdown("""
+<style>
     /* ===== FORCER TEXTE KPI EN NOIR ===== */
     div[data-testid="stMetricLabel"] * {
         color: #000000 !important;
@@ -29,38 +30,37 @@ st.markdown("""
         font-weight: 700 !important;
     }
 
-<style>
-    /* FOND GLOBAL : Dégradé subtil gris-bleu très clair */
-    .stApp {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-    }
-    
-    /* TITRES : Police moderne et couleur sombre */
-    h1, h2, h3 {
-        color: #1e293b !important;
-        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-        font-weight: 700;
-    }
-    
-    /* CARTES (Métriques & Graphiques) : Fond blanc pur avec ombre douce */
-    div[data-testid="stMetric"], .stPlotlyChart, .highlight-box {
-        background-color: rgba(255, 255, 255, 0.95); /* Blanc légèrement transparent */
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05); /* Ombre portée douce */
-        border: 1px solid rgba(255, 255, 255, 0.3);
-    }
-    
-    /* Bordure colorée pour les KPIs */
-    div[data-testid="stMetric"] {
-        border-left: 5px solid #0099DD;
-    }
+    /* FOND GLOBAL : Dégradé subtil gris-bleu très clair */
+    .stApp {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    }
 
-    /* Boîte de mise en avant (RSI) */
-    .highlight-box {
-        border-left: 5px solid #0284c7;
-        background-color: #f0f9ff;
-    }
+    /* TITRES : Police moderne et couleur sombre */
+    h1, h2, h3 {
+        color: #1e293b !important;
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        font-weight: 700;
+    }
+
+    /* CARTES (Métriques & Graphiques) */
+    div[data-testid="stMetric"], .stPlotlyChart, .highlight-box {
+        background-color: rgba(255, 255, 255, 0.95);
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    /* Bordure colorée pour les KPIs */
+    div[data-testid="stMetric"] {
+        border-left: 5px solid #0099DD;
+    }
+
+    /* Boîte RSI */
+    .highlight-box {
+        border-left: 5px solid #0284c7;
+        background-color: #f0f9ff;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -256,4 +256,5 @@ if df is not None:
 
 else:
     st.error("Fichier de données introuvable.")
+
 
