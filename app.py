@@ -240,4 +240,3 @@ if df is not None:
 
 else:
     st.error("Fichier de données introuvable.")
-
